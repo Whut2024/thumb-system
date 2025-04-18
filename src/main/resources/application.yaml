@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: thumb-system
+
+  # 读取远程配置
+  config:
+    import: 'nacos:'
+  cloud:
+    nacos:
+      config:
+        server-addr: 117.72.11.152:8848/thumb-system.yaml
+        namespace: a02e2140-72cd-4eba-bcba-95a060514eba
+        group: support
+        prefix: /
+        file-extension: yaml
+        username: nacos
+        password: nacos

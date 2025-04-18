@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="top.liuqiao.thumb.mapper.ThumbCountMapper">
+
+    <resultMap id="BaseResultMap" type="top.liuqiao.thumb.model.entity.ThumbCount">
+            <id property="itemId" column="item_id" jdbcType="BIGINT"/>
+            <result property="thumbNum" column="thumb_num" jdbcType="INTEGER"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        item_id,thumb_num
+    </sql>
+    <select id="getBatchCount" resultType="java.lang.Integer">
+        SELECT thumb_num
+        FROM thumb.thumb_count
+        WHERE item_id IN
+        <foreach collection="bidList" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+</mapper>

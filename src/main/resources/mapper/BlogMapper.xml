@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="top.liuqiao.thumb.mapper.BlogMapper">
+
+    <resultMap id="BaseResultMap" type="top.liuqiao.thumb.model.entity.Blog">
+        <id property="id" column="id" jdbcType="BIGINT"/>
+        <result property="title" column="title" jdbcType="VARCHAR"/>
+        <result property="content" column="content" jdbcType="VARCHAR"/>
+        <result property="userId" column="user_id" jdbcType="BIGINT"/>
+        <result property="updateTime" column="update_time" jdbcType="TIMESTAMP"/>
+        <result property="createTime" column="create_time" jdbcType="TIMESTAMP"/>
+        <result property="isDelete" column="is_delete" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,cover_img,title,content,
+        user_id,update_time,create_time,
+        is_delete
+    </sql>
+
+    <update id="updateBlog">
+        update thumb.t_blog
+        <set>
+            <!-- 当title字段非null时生成 -->
+            <if test="title != null">
+                title = #{title},
+            </if>
+            <!-- 当cover_img字段非null时生成 -->
+            <if test="coverImg != null">
+                cover_img = #{coverImg},
+            </if>
+            <!-- 当content字段非null时生成 -->
+            <if test="content != null">
+                content = #{content},
+            </if>
+        </set>
+        WHERE id = #{id}  <!-- id是@NotNull的必填字段 -->
+    </update>
+
+    <select id="pageBlog" resultType="top.liuqiao.thumb.model.entity.Blog">
+        SELECT * FROM thumb.t_blog
+        <where>
+            <if test="blog.title != null and blog.title != ''">
+                AND title LIKE CONCAT('%', #{blog.title}, '%')
+            </if>
+            <if test="blog.content != null and blog.content != ''">
+                AND content LIKE CONCAT('%', #{blog.content}, '%')
+            </if>
+            <if test="blog.userId != null">
+                AND user_id = #{blog.userId}
+            </if>
+            <if test="blog.updateTime != null">
+                AND update_time = #{blog.updateTime}
+            </if>
+            <if test="blog.createTime != null">
+                AND create_time = #{blog.createTime}
+            </if>
+        </where>
+        <if test="blog.fieldList != null and blog.fieldList.size() > 0">
+            ORDER BY
+            <foreach collection="blog.fieldList" item="field" index="index" separator=",">
+                ${field} ${blog.orderList[index]}
+            </foreach>
+        </if>
+        <!-- 使用您指定的offset参数 -->
+        LIMIT #{blog.pageSize} OFFSET #{offset}
+    </select>
+
+    <select id="countBlog" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM thumb.t_blog
+        <where>
+            <if test="title != null and title != ''">
+                AND title LIKE CONCAT('%', #{title}, '%')
+            </if>
+            <if test="content != null and content != ''">
+                AND content LIKE CONCAT('%', #{content}, '%')
+            </if>
+            <if test="userId != null">
+                AND user_id = #{userId}
+            </if>
+            <if test="updateTime != null">
+                AND update_time = #{updateTime}
+            </if>
+            <if test="createTime != null">
+                AND create_time = #{createTime}
+            </if>
+        </where>
+    </select>
+</mapper>
