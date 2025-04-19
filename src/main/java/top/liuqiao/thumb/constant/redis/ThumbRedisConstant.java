@@ -17,4 +17,13 @@ public interface ThumbRedisConstant {
 
     long MONTH_MILL = 30 * 24 * 60 * 60 * 1000L;
 
+
+    String THUMB_USER_DISTRIBUTE_LOCK = "thumb:user:distribute:lock";
+
+    String THUMB_USER_DISTRIBUTE = "thumb:user:distribute";
+
+    long THUMB_USER_DISTRIBUTE_WAIT_TIME = 3_000L;
+
+    long THUMB_USER_DISTRIBUTE_TTL = 3 * 60 * 60 * 1000L;
+
 }
