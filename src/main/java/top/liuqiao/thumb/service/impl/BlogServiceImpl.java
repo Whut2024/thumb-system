@@ -5,6 +5,7 @@ import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.IdUtil;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import top.liuqiao.thumb.common.ErrorCode;
 import top.liuqiao.thumb.exception.BusinessException;
 import top.liuqiao.thumb.exception.ThrowUtils;
@@ -23,7 +24,6 @@ import top.liuqiao.thumb.util.sql.OrderEnum;
 import top.liuqiao.thumb.util.sql.Page;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * @author liuqiao
@@ -38,6 +38,8 @@ public class BlogServiceImpl implements BlogService {
     private final ThumbMapper thumbMapper;
 
     private final ThumbCountMapper thumbCountMapper;
+
+    private final TransactionTemplate transactionTemplate;
 
     private final static Set<String> fieldSet = new HashSet<>();
 
@@ -57,7 +59,11 @@ public class BlogServiceImpl implements BlogService {
         final Blog blog = BeanUtil.copyProperties(blogAddRequest, Blog.class);
         blog.setId(IdUtil.getSnowflakeNextId());
         blog.setUserId(UserHolder.get().getId());
-        return blogMapper.addBlog(blog) == 1;
+
+        return transactionTemplate.execute(status -> {
+            thumbCountMapper.addLog(blog.getId());
+            return blogMapper.addBlog(blog);
+        }) == 1;
     }
 
     @Override

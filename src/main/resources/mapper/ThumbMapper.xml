@@ -16,6 +16,12 @@
         id,item_id,user_id,
         create_time,is_delete
     </sql>
+    <insert id="addThumb">
+
+        INSERT INTO thumb.t_thumb (id, item_id, user_id)
+        VALUES (#{id}, #{itemId}, #{userId});
+
+    </insert>
     <select id="getUserThumb" resultType="top.liuqiao.thumb.model.entity.Thumb">
         SELECT item_id
         FROM thumb.t_thumb
