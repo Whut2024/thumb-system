@@ -8,12 +8,13 @@ package top.liuqiao.thumb.constant.redis;
  */
 public interface ThumbRedisConstant {
 
-    String THUMB_LOCK_PREFIX = "thumb:";
+    String THUMB_LOCK_PREFIX = "thumb:lock:";
 
-    long THUMB_LOCK_TTL = 30_000L;
 
     long THUMB_LOCK_WAIT_TTL = 3_000L;
 
+    String THUMB_USER_PREFIX = "thumb:user:";
 
+    long MONTH_MILL = 30 * 24 * 60 * 60 * 1000L;
 
 }

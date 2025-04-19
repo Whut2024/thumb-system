@@ -19,6 +19,7 @@ import top.liuqiao.thumb.model.request.blog.BlogPageRequest;
 import top.liuqiao.thumb.model.request.blog.BlogUpdateRequest;
 import top.liuqiao.thumb.model.vo.blog.BlogVo;
 import top.liuqiao.thumb.service.BlogService;
+import top.liuqiao.thumb.service.ThumbService;
 import top.liuqiao.thumb.util.UserHolder;
 import top.liuqiao.thumb.util.sql.OrderEnum;
 import top.liuqiao.thumb.util.sql.Page;
@@ -38,6 +39,8 @@ public class BlogServiceImpl implements BlogService {
     private final ThumbMapper thumbMapper;
 
     private final ThumbCountMapper thumbCountMapper;
+
+    private final ThumbService thumbService;
 
     private final TransactionTemplate transactionTemplate;
 
@@ -107,10 +110,8 @@ public class BlogServiceImpl implements BlogService {
 
         final List<Long> bidList = blogList.stream().map(Blog::getId).toList();
         final List<Integer> tcountList = thumbCountMapper.getBatchCount(bidList); // todo 可能有顺序问题
-        final List<Thumb> tList = thumbMapper.getUserThumb(bidList, UserHolder.get().getId());
 
-        final Map<Long, Boolean> hasThumbMap = new HashMap<>();
-        tList.forEach(t -> hasThumbMap.put(t.getItemId(), true));
+        final Map<Long, Boolean> hasThumbMap = thumbService.getUserThumb(bidList, UserHolder.get().getId());
 
         for (int i = 0; i < blogVoList.size(); i++) {
             BlogVo blogVo = blogVoList.get(i);

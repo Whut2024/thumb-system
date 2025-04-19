@@ -4,6 +4,7 @@ import cn.hutool.core.util.IdUtil;
 import lombok.AllArgsConstructor;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import top.liuqiao.thumb.common.ErrorCode;
@@ -19,6 +20,10 @@ import top.liuqiao.thumb.model.request.thumb.ThumbDeleteRequest;
 import top.liuqiao.thumb.service.ThumbService;
 import top.liuqiao.thumb.util.UserHolder;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,6 +41,8 @@ public class ThumbServiceImpl implements ThumbService {
     private final RedissonClient redissonClient;
 
     private final TransactionTemplate transactionTemplate;
+
+    private final StringRedisTemplate redisTemplate;
 
 
     @Override
@@ -84,6 +91,10 @@ public class ThumbServiceImpl implements ThumbService {
                     return null;
                 });
 
+                // 缓存点赞信息
+                redisTemplate.opsForHash().put(ThumbRedisConstant.THUMB_USER_PREFIX + userId,
+                        itemId.toString(),
+                        String.valueOf(System.currentTimeMillis() + ThumbRedisConstant.MONTH_MILL));
                 return Boolean.TRUE;
             } finally {
                 lock.unlock();
@@ -109,16 +120,21 @@ public class ThumbServiceImpl implements ThumbService {
 
         if (locked) {
             try {
+                Long itemId = thumbDeleteRequest.getItemId();
                 transactionTemplate.execute(status -> {
-                    final Thumb thumb = thumbMapper.getThumbByBlogIdUserId(thumbDeleteRequest.getItemId(), userId);
+                    final Thumb thumb = thumbMapper.getThumbByBlogIdUserId(itemId, userId);
 
                     ThrowUtils.throwIf(thumb == null || thumb.getIsDelete() == 1,
                             ErrorCode.OPERATION_ERROR, "点赞记录不存在");
 
                     thumbMapper.delete(thumb.getId());
-                    thumbCountMapper.decreaseThumbCount(thumbDeleteRequest.getItemId());
+                    thumbCountMapper.decreaseThumbCount(itemId);
                     return null;
                 });
+
+                // 删除缓存的点赞信息
+                redisTemplate.opsForHash().delete(ThumbRedisConstant.THUMB_USER_PREFIX + userId,
+                        itemId.toString());
                 return Boolean.TRUE;
             } finally {
                 lock.unlock();
@@ -127,5 +143,19 @@ public class ThumbServiceImpl implements ThumbService {
 
         throw new BusinessException(ErrorCode.OPERATION_ERROR, "不能短时间重复点赞");
 
+    }
+
+    @Override
+    public Map<Long, Boolean> getUserThumb(List<Long> bidList, Long userId) {
+        final List<Object> hashKeyList = bidList.stream().map(d -> (Object) d.toString()).toList();
+
+        final List<Object> timestampList = redisTemplate.opsForHash().
+                multiGet(ThumbRedisConstant.THUMB_USER_PREFIX + userId, hashKeyList);
+        final Map<Long, Boolean> map = new HashMap<>();
+        for (int i = 0; i < bidList.size(); i++) {
+            map.put(bidList.get(i), timestampList.get(i) != null);
+        }
+
+        return map;
     }
 }
