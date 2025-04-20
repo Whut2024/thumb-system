@@ -29,9 +29,11 @@ public interface ThumbRedisConstant {
     /**
      * 这个 key 会按照 {%dd} 进行分片
      */
-    String THUMB_TMP_PREFIX = "thumb:tmp:{%d}";
+    String THUMB_TMP_PREFIX = "thumb:tmp:{%s}";
 
-    static String getThumbTmpKey(long timestamp) {
+    String THUMB_TMP_PERSISTENCE_LOCK_KEY = "thumb:tmp-persistence";
+
+    static String getThumbTmpKey(String timestamp) {
         return THUMB_TMP_PREFIX.formatted(timestamp);
     }
 }

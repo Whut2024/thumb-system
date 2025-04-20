@@ -7,23 +7,20 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 import top.liuqiao.thumb.common.ErrorCode;
 import top.liuqiao.thumb.constant.redis.ThumbLuaConstant;
 import top.liuqiao.thumb.constant.redis.ThumbRedisConstant;
 import top.liuqiao.thumb.enums.LuaScriptResultEnum;
 import top.liuqiao.thumb.exception.BusinessException;
 import top.liuqiao.thumb.exception.ThrowUtils;
-import top.liuqiao.thumb.mapper.ThumbCountMapper;
-import top.liuqiao.thumb.mapper.ThumbMapper;
 import top.liuqiao.thumb.model.entity.Thumb;
 import top.liuqiao.thumb.model.entity.User;
 import top.liuqiao.thumb.model.request.thumb.ThumbAddRequest;
 import top.liuqiao.thumb.model.request.thumb.ThumbDeleteRequest;
 import top.liuqiao.thumb.service.ThumbService;
+import top.liuqiao.thumb.util.ThumbUtil;
 import top.liuqiao.thumb.util.UserHolder;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,9 +62,10 @@ public class ThumbServiceImpl implements ThumbService {
 
         if (locked) {
             try {
-                long currentTime = System.currentTimeMillis() / 1000;
+                long currentTime = System.currentTimeMillis();
                 Long result = redisTemplate.execute(ThumbLuaConstant.THUMB_SCRIPT,
-                        CollectionUtil.newArrayList(ThumbRedisConstant.getThumbTmpKey(currentTime), // k1
+                        CollectionUtil.newArrayList(
+                                ThumbRedisConstant.getThumbTmpKey(ThumbUtil.getTimeStampSlice(currentTime)), // k1
                                 ThumbRedisConstant.THUMB_USER_PREFIX + userId), // k2
                         String.valueOf(userId), // arg1
                         String.valueOf(itemId),  // arg2
@@ -101,9 +99,10 @@ public class ThumbServiceImpl implements ThumbService {
         if (locked) {
             try {
                 Long itemId = thumbDeleteRequest.getItemId();
-                long currentTime = System.currentTimeMillis() / 1000;
+                long currentTime = System.currentTimeMillis();
                 Long result = redisTemplate.execute(ThumbLuaConstant.UNTHUMB_SCRIPT,
-                        CollectionUtil.newArrayList(ThumbRedisConstant.getThumbTmpKey(currentTime), // k1
+                        CollectionUtil.newArrayList(
+                                ThumbRedisConstant.getThumbTmpKey(ThumbUtil.getTimeStampSlice(currentTime)), // k1
                                 ThumbRedisConstant.THUMB_USER_PREFIX + userId), // k2
                         String.valueOf(userId), // arg1
                         String.valueOf(itemId)  // arg2
