@@ -5,11 +5,10 @@
 <mapper namespace="top.liuqiao.thumb.mapper.ThumbMapper">
 
     <resultMap id="BaseResultMap" type="top.liuqiao.thumb.model.entity.Thumb">
-            <id property="id" column="id" jdbcType="BIGINT"/>
-            <result property="itemId" column="item_id" jdbcType="BIGINT"/>
-            <result property="userId" column="user_id" jdbcType="BIGINT"/>
-            <result property="createTime" column="create_time" jdbcType="TIMESTAMP"/>
-            <result property="isDelete" column="is_delete" jdbcType="TINYINT"/>
+        <id property="id" column="id" jdbcType="BIGINT"/>
+        <result property="itemId" column="item_id" jdbcType="BIGINT"/>
+        <result property="userId" column="user_id" jdbcType="BIGINT"/>
+        <result property="createTime" column="create_time" jdbcType="TIMESTAMP"/>
     </resultMap>
 
     <sql id="Base_Column_List">
@@ -22,6 +21,22 @@
         VALUES (#{id}, #{itemId}, #{userId});
 
     </insert>
+
+    <insert id="addBatchThumb">
+        INSERT INTO thumb.t_thumb (id, item_id, user_id)
+        VALUES
+        <foreach collection="thumbList" item="thumb" separator=",">
+            (#{thumb.id}, #{thumb.itemId}, #{thumb.userId})
+        </foreach>
+    </insert>
+    <delete id="batchDeleteByUidBids">
+        DELETE FROM thumb.t_thumb
+        WHERE (item_id, user_id) IN (
+        <foreach collection="dbidList" index="i" item="dbid" open="(" close=")" separator=",">
+            (#{dbid}, #{duidList[${i}]})
+        </foreach>
+        )
+    </delete>
     <select id="getUserThumb" resultType="top.liuqiao.thumb.model.entity.Thumb">
         SELECT item_id
         FROM thumb.t_thumb

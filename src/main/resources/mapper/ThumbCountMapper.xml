@@ -5,19 +5,32 @@
 <mapper namespace="top.liuqiao.thumb.mapper.ThumbCountMapper">
 
     <resultMap id="BaseResultMap" type="top.liuqiao.thumb.model.entity.ThumbCount">
-            <id property="itemId" column="item_id" jdbcType="BIGINT"/>
-            <result property="thumbNum" column="thumb_num" jdbcType="INTEGER"/>
+        <id property="itemId" column="item_id" jdbcType="BIGINT"/>
+        <result property="thumbNum" column="thumb_num" jdbcType="INTEGER"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         item_id,thumb_num
     </sql>
+    <update id="batchUpdateCount">
+        UPDATE thumb.t_thumb_count
+        SET thumb_num = thumb_num + CASE item_id
+        <foreach collection="bidThuChaCouMap.entrySet()" item="value" index="key">
+            WHEN #{key} THEN #{value}
+        </foreach>
+        END
+        WHERE item_id IN
+        <foreach collection="bidThuChaCouMap.keySet()" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
     <select id="getBatchCount" resultType="java.lang.Integer">
         SELECT thumb_num
-        FROM thumb.thumb_count
+        FROM thumb.t_thumb_count
         WHERE item_id IN
         <foreach collection="bidList" item="id" open="(" separator="," close=")">
             #{id}
         </foreach>
     </select>
 </mapper>
+

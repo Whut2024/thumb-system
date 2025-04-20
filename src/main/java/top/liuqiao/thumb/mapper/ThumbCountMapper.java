@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author laowang
@@ -16,14 +17,13 @@ public interface ThumbCountMapper {
 
     List<Integer> getBatchCount(@Param("bidList") List<Long> bidList);
 
-    @Update("update thumb.thumb_count set thumb_num = thumb_num + 1 where item_id = #{itemId}")
+    @Update("update thumb.t_thumb_count set thumb_num = thumb_num + 1 where item_id = #{itemId}")
     void increaseThumbCount(@Param("itemId") Long itemId);
 
-    @Insert("insert into thumb.thumb_count(item_id, thumb_num) VALUES (#{id}, 0)")
+    @Insert("insert into thumb.t_thumb_count(item_id, thumb_num) VALUES (#{id}, 0)")
     void addLog(@Param("id") Long id);
 
-    @Update("update thumb.thumb_count set thumb_num = thumb_num - 1 where item_id = #{itemId}")
-    void decreaseThumbCount(@Param("itemId")Long itemId);
+    void batchUpdateCount(@Param("bidThuChaCouMap") Map<Long, Integer> bidThuChaCouMap);
 }
 
 
