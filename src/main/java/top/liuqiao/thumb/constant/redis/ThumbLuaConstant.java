@@ -25,7 +25,8 @@ public interface ThumbLuaConstant {
             local hashKey = userId .. ':' .. blogId
             
             -- 增加用户点赞某个博客的操作缓存
-            redis.call('HSET', tempThumbKey, hashKey, 1)
+            local oldNumber = tonumber(redis.call('HGET', tempThumbKey, hashKey) or 0)
+            redis.call('HSET', tempThumbKey, hashKey, oldNumber + 1)
             
             -- 增加用户点赞某个博客的记录缓存
             redis.call('HSET', userThumbKey, blogId, expireTime) -- 30 * 24 * 60 * 60
@@ -48,7 +49,8 @@ public interface ThumbLuaConstant {
             local hashKey = userId .. ':' .. blogId
             
             -- 新增用户取消点赞操作缓存
-            redis.call('HSET', tempThumbKey, hashKey, -1)
+            local oldNumber = tonumber(redis.call('HGET', tempThumbKey, hashKey) or 0)
+            redis.call('HSET', tempThumbKey, hashKey, oldNumber - 1)
             
             -- 删除用户点赞记录缓存
             redis.call('HDEL', userThumbKey, blogId)
