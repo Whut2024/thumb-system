@@ -29,7 +29,7 @@ public interface ThumbRedisConstant {
     /**
      * 这个 key 会按照 {%dd} 进行分片
      */
-    String THUMB_TMP_PREFIX = "thumb:tmp:{%s}";
+    String THUMB_TMP_PREFIX = "thumb:tmp:%s";
 
     String THUMB_TMP_PERSISTENCE_LOCK_KEY = "thumb:tmp-persistence";
 

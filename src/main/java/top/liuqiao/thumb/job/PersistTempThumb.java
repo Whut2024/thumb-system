@@ -50,6 +50,13 @@ public class PersistTempThumb {
 
     @Scheduled(initialDelay = 10_000L, fixedRate = 10_000L)
     void run() {
+        long targetTime = System.currentTimeMillis() - 10_000;
+        String slice = ThumbUtil.getTimeStampSlice(targetTime);
+        persist(slice);
+    }
+
+
+    void persist(String slice) {
         log.info("开始持久化用户点赞相关操作");
         // 加锁
         RLock lock = redissonClient.getLock(ThumbRedisConstant.THUMB_TMP_PERSISTENCE_LOCK_KEY);
@@ -62,8 +69,6 @@ public class PersistTempThumb {
 
         try {
             // 获取对应的时间段内用户点赞操作缓存
-            long targetTime = System.currentTimeMillis() - 10_000;
-            String slice = ThumbUtil.getTimeStampSlice(targetTime);
             String key = ThumbRedisConstant.getThumbTmpKey(slice);
             Map<Object, Object> uidBidThuOpeMap = redisTemplate.opsForHash().entries(key);
             if (CollectionUtil.isEmpty(uidBidThuOpeMap)) {
