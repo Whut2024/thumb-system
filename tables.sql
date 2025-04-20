@@ -53,7 +53,7 @@ CREATE TABLE `t_thumb`
 
 
 DROP TABLE IF EXISTS `t_thumb_count`;
-CREATE TABLE `thumb_count`
+CREATE TABLE `t_thumb_count`
 (
     `item_id`   BIGINT NOT NULL COMMENT '实例id',
     `thumb_num` int    NOT NULL DEFAULT '0' COMMENT '点赞数量',

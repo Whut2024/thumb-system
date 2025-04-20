@@ -106,6 +106,14 @@ public class BlogServiceImpl implements BlogService {
 
         final List<Blog> blogList = blogMapper.pageBlog(blogPageRequest,
                 (long) blogPageRequest.getPageSize() * blogPageRequest.getCurrent());
+        if (CollectionUtil.isEmpty(blogList)) {
+            Page<BlogVo> page = new Page<>();
+            page.setRecords(Collections.EMPTY_LIST);
+            page.setCurrent(blogPageRequest.getCurrent());
+            page.setPageSize(blogPageRequest.getPageSize());
+            page.setTotal(total);
+            return page;
+        }
         final List<BlogVo> blogVoList = blogList.stream().map(f -> BeanUtil.copyProperties(f, BlogVo.class)).toList();
 
         final List<Long> bidList = blogList.stream().map(Blog::getId).toList();
