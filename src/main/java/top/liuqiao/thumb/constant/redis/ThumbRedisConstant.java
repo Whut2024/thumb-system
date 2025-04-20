@@ -15,7 +15,7 @@ public interface ThumbRedisConstant {
 
     String THUMB_USER_PREFIX = "thumb:user:";
 
-    long MONTH_MILL = 30 * 24 * 60 * 60 * 1000L;
+    long MONTH_SECOND = 30 * 24 * 60 * 60;
 
 
     String THUMB_USER_DISTRIBUTE_LOCK = "thumb:user:distribute:lock";
@@ -26,4 +26,12 @@ public interface ThumbRedisConstant {
 
     long THUMB_USER_DISTRIBUTE_TTL = 3 * 60 * 60 * 1000L;
 
+    /**
+     * 这个 key 会按照 {%dd} 进行分片
+     */
+    String THUMB_TMP_PREFIX = "thumb:tmp:{%d}";
+
+    static String getThumbTmpKey(long timestamp) {
+        return THUMB_TMP_PREFIX.formatted(timestamp);
+    }
 }

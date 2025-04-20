@@ -1,5 +1,6 @@
 package top.liuqiao.thumb.service.impl;
 
+import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.IdUtil;
 import lombok.AllArgsConstructor;
 import org.redisson.api.RLock;
@@ -8,7 +9,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import top.liuqiao.thumb.common.ErrorCode;
+import top.liuqiao.thumb.constant.redis.ThumbLuaConstant;
 import top.liuqiao.thumb.constant.redis.ThumbRedisConstant;
+import top.liuqiao.thumb.enums.LuaScriptResultEnum;
 import top.liuqiao.thumb.exception.BusinessException;
 import top.liuqiao.thumb.exception.ThrowUtils;
 import top.liuqiao.thumb.mapper.ThumbCountMapper;
@@ -34,13 +37,7 @@ import java.util.concurrent.TimeUnit;
 @AllArgsConstructor
 public class ThumbServiceImpl implements ThumbService {
 
-    private final ThumbMapper thumbMapper;
-
-    private final ThumbCountMapper thumbCountMapper;
-
     private final RedissonClient redissonClient;
-
-    private final TransactionTemplate transactionTemplate;
 
     private final StringRedisTemplate redisTemplate;
 
@@ -68,33 +65,16 @@ public class ThumbServiceImpl implements ThumbService {
 
         if (locked) {
             try {
-                // 点赞事务
-                transactionTemplate.execute(status -> {
-                    // 查询点赞记录
-                    Thumb oldThumb = thumbMapper.getThumbByBlogIdUserId(itemId, userId);
-                    ThrowUtils.throwIf(oldThumb != null && oldThumb.getIsDelete() == 0,
-                            ErrorCode.OPERATION_ERROR, "已经点赞");
-
-                    int row;
-                    if (oldThumb == null) {
-                        // 增加点赞记录
-                        row = thumbMapper.addThumb(thumb);
-                    } else {
-                        // 更新被逻辑删除的点赞
-                        row = thumbMapper.updateThumb(oldThumb.getId());
-                    }
-
-                    ThrowUtils.throwIf(row == 0, ErrorCode.OPERATION_ERROR, "已经点赞");
-
-                    // 增加点赞总数
-                    thumbCountMapper.increaseThumbCount(itemId);
-                    return null;
-                });
-
-                // 缓存点赞信息
-                redisTemplate.opsForHash().put(ThumbRedisConstant.THUMB_USER_PREFIX + userId,
-                        itemId.toString(),
-                        String.valueOf(System.currentTimeMillis() + ThumbRedisConstant.MONTH_MILL));
+                long currentTime = System.currentTimeMillis() / 1000;
+                Long result = redisTemplate.execute(ThumbLuaConstant.THUMB_SCRIPT,
+                        CollectionUtil.newArrayList(ThumbRedisConstant.getThumbTmpKey(currentTime), // k1
+                                ThumbRedisConstant.THUMB_USER_PREFIX + userId), // k2
+                        String.valueOf(userId), // arg1
+                        String.valueOf(itemId),  // arg2
+                        String.valueOf(currentTime + ThumbRedisConstant.MONTH_SECOND) // arg3
+                );
+                ThrowUtils.throwIf(result == null || result == LuaScriptResultEnum.FAIL.getValue(),
+                        ErrorCode.OPERATION_ERROR, "无法重复点赞");
                 return Boolean.TRUE;
             } finally {
                 lock.unlock();
@@ -121,20 +101,15 @@ public class ThumbServiceImpl implements ThumbService {
         if (locked) {
             try {
                 Long itemId = thumbDeleteRequest.getItemId();
-                transactionTemplate.execute(status -> {
-                    final Thumb thumb = thumbMapper.getThumbByBlogIdUserId(itemId, userId);
-
-                    ThrowUtils.throwIf(thumb == null || thumb.getIsDelete() == 1,
-                            ErrorCode.OPERATION_ERROR, "点赞记录不存在");
-
-                    thumbMapper.delete(thumb.getId());
-                    thumbCountMapper.decreaseThumbCount(itemId);
-                    return null;
-                });
-
-                // 删除缓存的点赞信息
-                redisTemplate.opsForHash().delete(ThumbRedisConstant.THUMB_USER_PREFIX + userId,
-                        itemId.toString());
+                long currentTime = System.currentTimeMillis() / 1000;
+                Long result = redisTemplate.execute(ThumbLuaConstant.UNTHUMB_SCRIPT,
+                        CollectionUtil.newArrayList(ThumbRedisConstant.getThumbTmpKey(currentTime), // k1
+                                ThumbRedisConstant.THUMB_USER_PREFIX + userId), // k2
+                        String.valueOf(userId), // arg1
+                        String.valueOf(itemId)  // arg2
+                );
+                ThrowUtils.throwIf(result == null || result == LuaScriptResultEnum.FAIL.getValue(),
+                        ErrorCode.OPERATION_ERROR, "无法取消点赞");
                 return Boolean.TRUE;
             } finally {
                 lock.unlock();
