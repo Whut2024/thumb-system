@@ -47,7 +47,6 @@ CREATE TABLE `t_thumb`
     `item_id`     BIGINT     NOT NULL COMMENT '实例id',
     `user_id`     BIGINT     NOT NULL COMMENT '用户id',
     `create_time` TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '创建时间',
-    `is_delete`   TINYINT(1) NOT NULL DEFAULT '0' COMMENT '是否删除(0:未删除,1:已删除)',
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='点赞表';
