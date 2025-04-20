@@ -18,12 +18,13 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 每天的 01:00 会按时去遍历所有用户对博客的点赞状态缓存，会删除过期的部分
+ *
  * @author liuqiao
  * @since 2025-04-19
  */
 @Component
 @AllArgsConstructor
-public class CleanExpiredThumbCache {
+public class CleanExpiredThumb {
 
     private final UserMapper userMapper;
 
@@ -32,7 +33,7 @@ public class CleanExpiredThumbCache {
     private final RedissonClient redissonClient;
 
     @Scheduled(cron = "0 0 1 * * ?")
-    public void clean() {
+    void clean() {
         while (true) {
             // 加锁
             RLock lock = redissonClient.getLock(ThumbRedisConstant.THUMB_USER_DISTRIBUTE_LOCK);
@@ -80,7 +81,7 @@ public class CleanExpiredThumbCache {
                         .entries(thumbCacheUserKey);
 
                 // 根据用户 id 去批量拉取 redis 中的点赞缓存
-                long currentTime = System.currentTimeMillis();
+                long currentTime = System.currentTimeMillis() / 1000;
                 List<Object> targetDeletedBidList = new ArrayList<>(bidExpMap.size() / 2 + 1);
                 for (Map.Entry<Object, Object> bidExpEntry : bidExpMap.entrySet()) {
                     // 过期判断
