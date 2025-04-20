@@ -1,7 +1,6 @@
 package top.liuqiao.thumb.service;
 
 import jakarta.validation.Valid;
-import top.liuqiao.thumb.model.entity.Thumb;
 import top.liuqiao.thumb.model.request.thumb.ThumbAddRequest;
 import top.liuqiao.thumb.model.request.thumb.ThumbDeleteRequest;
 
