@@ -13,7 +13,6 @@ import top.liuqiao.thumb.mapper.BlogMapper;
 import top.liuqiao.thumb.mapper.ThumbCountMapper;
 import top.liuqiao.thumb.mapper.ThumbMapper;
 import top.liuqiao.thumb.model.entity.Blog;
-import top.liuqiao.thumb.model.entity.Thumb;
 import top.liuqiao.thumb.model.request.blog.BlogAddRequest;
 import top.liuqiao.thumb.model.request.blog.BlogPageRequest;
 import top.liuqiao.thumb.model.request.blog.BlogUpdateRequest;
@@ -119,7 +118,11 @@ public class BlogServiceImpl implements BlogService {
         final List<Long> bidList = blogList.stream().map(Blog::getId).toList();
         final List<Integer> tcountList = thumbCountMapper.getBatchCount(bidList); // todo 可能有顺序问题
 
-        final Map<Long, Boolean> hasThumbMap = thumbService.getUserThumb(bidList, UserHolder.get().getId());
+        Long uid = UserHolder.get().getId();
+        final Map<Long, Boolean> hasThumbMap = new HashMap<>();
+        for (Long bid : bidList) {
+            hasThumbMap.put(bid, thumbService.hasThumb(bid, uid));
+        }
 
         for (int i = 0; i < blogVoList.size(); i++) {
             BlogVo blogVo = blogVoList.get(i);

@@ -4,9 +4,6 @@ import jakarta.validation.Valid;
 import top.liuqiao.thumb.model.request.thumb.ThumbAddRequest;
 import top.liuqiao.thumb.model.request.thumb.ThumbDeleteRequest;
 
-import java.util.List;
-import java.util.Map;
-
 /**
  * @author liuqiao
  * @since 2025-04-18
@@ -24,7 +21,7 @@ public interface ThumbService {
     Boolean deleteThumb(@Valid ThumbDeleteRequest thumbDeleteRequest);
 
     /**
-     * 查询用户对指定博客中的哪些博客进行过点赞
+     * 查询用户对指定博客是否点赞
      */
-    Map<Long, Boolean> getUserThumb(List<Long> bidList, Long userId);
+    Boolean hasThumb(Long bid, Long userId);
 }

@@ -13,6 +13,7 @@ import top.liuqiao.thumb.constant.redis.ThumbRedisConstant;
 import top.liuqiao.thumb.enums.LuaScriptResultEnum;
 import top.liuqiao.thumb.exception.BusinessException;
 import top.liuqiao.thumb.exception.ThrowUtils;
+import top.liuqiao.thumb.manager.cache.CacheManager;
 import top.liuqiao.thumb.model.entity.Thumb;
 import top.liuqiao.thumb.model.entity.User;
 import top.liuqiao.thumb.model.request.thumb.ThumbAddRequest;
@@ -21,9 +22,6 @@ import top.liuqiao.thumb.service.ThumbService;
 import top.liuqiao.thumb.util.ThumbUtil;
 import top.liuqiao.thumb.util.UserHolder;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -37,6 +35,10 @@ public class ThumbServiceImpl implements ThumbService {
     private final RedissonClient redissonClient;
 
     private final StringRedisTemplate redisTemplate;
+
+    private final CacheManager cacheManager;
+
+    private final static Long UN_THUMB_CONSTANT = 0L;
 
 
     @Override
@@ -63,16 +65,21 @@ public class ThumbServiceImpl implements ThumbService {
         if (locked) {
             try {
                 long currentTime = System.currentTimeMillis();
+                String userThuHashKey = ThumbRedisConstant.THUMB_USER_PREFIX + userId;
+                String itemIdStr = String.valueOf(itemId);
+                String expireTIme = String.valueOf(currentTime + ThumbRedisConstant.MONTH_SECOND);
                 Long result = redisTemplate.execute(ThumbLuaConstant.THUMB_SCRIPT,
                         CollectionUtil.newArrayList(
                                 ThumbRedisConstant.getThumbTmpKey(ThumbUtil.getTimeStampSlice(currentTime)), // k1
-                                ThumbRedisConstant.THUMB_USER_PREFIX + userId), // k2
+                                userThuHashKey), // k2
                         String.valueOf(userId), // arg1
-                        String.valueOf(itemId),  // arg2
-                        String.valueOf(currentTime + ThumbRedisConstant.MONTH_SECOND) // arg3
+                        itemIdStr,  // arg2
+                        expireTIme // arg3
                 );
                 ThrowUtils.throwIf(result == null || result == LuaScriptResultEnum.FAIL.getValue(),
                         ErrorCode.OPERATION_ERROR, "无法重复点赞");
+
+                cacheManager.putIfPresent(userThuHashKey, itemIdStr, expireTIme);
                 return Boolean.TRUE;
             } finally {
                 lock.unlock();
@@ -100,15 +107,26 @@ public class ThumbServiceImpl implements ThumbService {
             try {
                 Long itemId = thumbDeleteRequest.getItemId();
                 long currentTime = System.currentTimeMillis();
+                String userThuHashKey = ThumbRedisConstant.THUMB_USER_PREFIX + userId;
+                String itemIdStr = String.valueOf(itemId);
+
+                Object o = cacheManager.get(userThuHashKey, itemIdStr);
+                ThrowUtils.throwIf(o == null || UN_THUMB_CONSTANT.equals(o),
+                        ErrorCode.OPERATION_ERROR, "用户没有点赞");
+
                 Long result = redisTemplate.execute(ThumbLuaConstant.UNTHUMB_SCRIPT,
                         CollectionUtil.newArrayList(
                                 ThumbRedisConstant.getThumbTmpKey(ThumbUtil.getTimeStampSlice(currentTime)), // k1
-                                ThumbRedisConstant.THUMB_USER_PREFIX + userId), // k2
+                                userThuHashKey), // k2
                         String.valueOf(userId), // arg1
-                        String.valueOf(itemId)  // arg2
+                        itemIdStr  // arg2
                 );
+
                 ThrowUtils.throwIf(result == null || result == LuaScriptResultEnum.FAIL.getValue(),
                         ErrorCode.OPERATION_ERROR, "无法取消点赞");
+
+                // 本地缓存设置为取消点赞
+                cacheManager.putIfPresent(userThuHashKey, itemIdStr, UN_THUMB_CONSTANT);
                 return Boolean.TRUE;
             } finally {
                 lock.unlock();
@@ -120,16 +138,12 @@ public class ThumbServiceImpl implements ThumbService {
     }
 
     @Override
-    public Map<Long, Boolean> getUserThumb(List<Long> bidList, Long userId) {
-        final List<Object> hashKeyList = bidList.stream().map(d -> (Object) d.toString()).toList();
-
-        final List<Object> timestampList = redisTemplate.opsForHash().
-                multiGet(ThumbRedisConstant.THUMB_USER_PREFIX + userId, hashKeyList);
-        final Map<Long, Boolean> map = new HashMap<>();
-        for (int i = 0; i < bidList.size(); i++) {
-            map.put(bidList.get(i), timestampList.get(i) != null);
+    public Boolean hasThumb(Long bid, Long userId) {
+        Object o = cacheManager.get(ThumbRedisConstant.THUMB_USER_PREFIX + userId, bid.toString());
+        if (o == null) {
+            return false;
         }
 
-        return map;
+        return !UN_THUMB_CONSTANT.equals(o);
     }
 }
