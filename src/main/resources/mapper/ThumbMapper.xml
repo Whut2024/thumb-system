@@ -45,4 +45,14 @@
             #{id}
         </foreach>
     </select>
+    <select id="batchSelectNotExist" resultType="java.lang.Long">
+
+        SELECT tmp.id FROM (
+        <foreach collection="bidSet" item="id" open="(" separator="UNION ALL" close=")">
+            SELECT #{id} AS id
+        </foreach>
+        ) tmp
+        LEFT JOIN thumb.t_thumb t ON tmp.id = t.item_id
+        WHERE t.item_id IS NULL
+    </select>
 </mapper>

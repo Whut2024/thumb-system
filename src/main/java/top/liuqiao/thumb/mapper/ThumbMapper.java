@@ -1,10 +1,10 @@
 package top.liuqiao.thumb.mapper;
 
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 import top.liuqiao.thumb.model.entity.Thumb;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * @author laowang
@@ -21,6 +21,8 @@ public interface ThumbMapper {
     void addBatchThumb(@Param("thumbList") List<Thumb> thumbList);
 
     void batchDeleteByUidBids(@Param("duidList") List<Long> duidList, @Param("dbidList") List<Long> dbidList);
+
+    Set<Long> batchSelectNotExist(@Param("bidSet") Set<Object> bidSet);
 }
 
 

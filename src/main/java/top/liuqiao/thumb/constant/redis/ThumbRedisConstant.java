@@ -26,14 +26,6 @@ public interface ThumbRedisConstant {
 
     long THUMB_USER_DISTRIBUTE_TTL = 3 * 60 * 60 * 1000L;
 
-    /**
-     * 这个 key 会按照 {%dd} 进行分片
-     */
-    String THUMB_TMP_PREFIX = "thumb:tmp:%s";
 
-    String THUMB_TMP_PERSISTENCE_LOCK_KEY = "thumb:tmp-persistence";
-
-    static String getThumbTmpKey(String timestamp) {
-        return THUMB_TMP_PREFIX.formatted(timestamp);
-    }
+    String THUMB_RECONCILE_PREFIX = "thumb:reconcile:";
 }

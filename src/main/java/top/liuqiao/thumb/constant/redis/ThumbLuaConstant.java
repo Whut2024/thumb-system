@@ -9,52 +9,59 @@ import org.springframework.data.redis.core.script.RedisScript;
  */
 public interface ThumbLuaConstant {
 
-    RedisScript<Long> THUMB_SCRIPT = new DefaultRedisScript<>("""
-            local tempThumbKey = KEYS[1]       -- 临时计数键（如 thumb:temp:{timeSlice}）
-            local userThumbKey = KEYS[2]       -- 用户点赞状态键（如 thumb:{userId}）
-            local userId = ARGV[1]             -- 用户 ID
-            local blogId = ARGV[2]             -- 博客 ID
-            local expireTime = ARGV[3]             -- 用户点赞缓存时间
+    /**
+     * 点赞 Lua 脚本
+     * KEYS[1]       -- 用户点赞状态键
+     * ARGV[1]       -- 博客 ID
+     * ARGV[1]       -- 用户点赞缓存过期时间
+     * 返回:
+     * -1: 已点赞
+     * 1: 操作成功
+     */
+    RedisScript<Long> THUMB_SCRIPT_MQ = new DefaultRedisScript<>("""  
+            local userThumbKey = KEYS[1]
+            local reconcileKey = KEYS[2]
+            local blogId = ARGV[1]
+            local expireTime = ARGV[2]
             
-            
-            -- 检查用户是否已经点赞
-            if redis.call('HEXISTS', userThumbKey, blogId) == 1 then
-                return -1  -- 已点赞，返回 -1 表示失败
+            -- 判断是否已经点赞
+            if redis.call("HEXISTS", userThumbKey, blogId) == 1 then
+                return -1
             end
             
-            local hashKey = userId .. ':' .. blogId
+            -- 添加点赞记录
+            redis.call("HSET", userThumbKey, blogId, expireTime)
             
-            -- 增加用户点赞某个博客的操作缓存
-            local oldNumber = tonumber(redis.call('HGET', tempThumbKey, hashKey) or 0)
-            redis.call('HSET', tempThumbKey, hashKey, oldNumber + 1)
             
-            -- 增加用户点赞某个博客的记录缓存
-            redis.call('HSET', userThumbKey, blogId, expireTime) -- 30 * 24 * 60 * 60
-            
-            return 1  -- 返回 1 表示成功
+            -- 修改对账情况
+            redis.call('HSET', reconcileKey, blogId, 1)
+            return 1
             """, Long.class);
 
-    RedisScript<Long> UNTHUMB_SCRIPT = new DefaultRedisScript<>("""
-            local tempThumbKey = KEYS[1]      -- 临时计数键（如 thumb:temp:{timeSlice}）
-            local userThumbKey = KEYS[2]      -- 用户点赞状态键（如 thumb:{userId}）
-            local userId = ARGV[1]            -- 用户 ID
-            local blogId = ARGV[2]            -- 博客 ID
+    /**
+     * 取消点赞 Lua 脚本
+     * KEYS[1]       -- 用户点赞状态键
+     * ARGV[1]       -- 博客 ID
+     * 返回:
+     * -1: 已点赞
+     * 1: 操作成功
+     */
+    RedisScript<Long> UNTHUMB_SCRIPT_MQ = new DefaultRedisScript<>("""  
+            local userThumbKey = KEYS[1]
+            local reconcileKey = KEYS[2]
+            local blogId = ARGV[1]
             
-            
-            -- 检验是否已经点赞
-            if redis.call('HEXISTS', userThumbKey, blogId) ~= 1 then
-                return -1  -- 未点赞，返回 -1 表示失败
+            -- 判断是否已点赞
+            if redis.call("HEXISTS", userThumbKey, blogId) == 0 then
+                return -1
             end
             
-            local hashKey = userId .. ':' .. blogId
+            -- 删除点赞记录
+            redis.call("HDEL", userThumbKey, blogId)
             
-            -- 新增用户取消点赞操作缓存
-            local oldNumber = tonumber(redis.call('HGET', tempThumbKey, hashKey) or 0)
-            redis.call('HSET', tempThumbKey, hashKey, oldNumber - 1)
-            
-            -- 删除用户点赞记录缓存
-            redis.call('HDEL', userThumbKey, blogId)
-            
-            return 1  -- 返回 1 表示成功
+            -- 修改对账情况
+            redis.call('HSET', reconcileKey, blogId, -1)
+            return 1
             """, Long.class);
+
 }
