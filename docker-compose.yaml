@@ -1,0 +1,10 @@
+version: '3.0'
+
+services:
+  pular:
+    image: apachepulsar/pulsar:4.0.3
+    container_name: pla
+    ports:
+      - '6650:6650'
+
+    command: tail -f /dev/null

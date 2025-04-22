@@ -92,7 +92,11 @@
             <version>3.1.8</version>
         </dependency>
 
-
+        <!-- spring-pulsar -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-pulsar</artifactId>
+        </dependency>
 
     </dependencies>
     <dependencyManagement>
