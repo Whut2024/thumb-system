@@ -18,9 +18,6 @@ public interface ThumbMapper {
 
     int addThumb(Thumb thumb);
 
-    @Select("select id, is_delete from thumb.t_thumb where item_id = #{itemId} and user_id = #{userId}")
-    Thumb getThumbByBlogIdUserId(@Param("itemId") Long itemId, @Param("userId") Long userId);
-
     void addBatchThumb(@Param("thumbList") List<Thumb> thumbList);
 
     void batchDeleteByUidBids(@Param("duidList") List<Long> duidList, @Param("dbidList") List<Long> dbidList);
