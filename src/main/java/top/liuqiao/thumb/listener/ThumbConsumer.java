@@ -3,15 +3,13 @@ package top.liuqiao.thumb.listener;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.lang.Pair;
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.json.JSONUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.api.Message;
-import org.apache.pulsar.common.schema.SchemaType;
-import org.springframework.pulsar.annotation.PulsarListener;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import top.liuqiao.thumb.constant.pulsar.ThumbPulsarConstant;
+import top.liuqiao.thumb.constant.kafka.ThumbKafkaConstant;
 import top.liuqiao.thumb.listener.thumb.msg.ThumbEvent;
 import top.liuqiao.thumb.mapper.ThumbCountMapper;
 import top.liuqiao.thumb.mapper.ThumbMapper;
@@ -38,26 +36,22 @@ public class ThumbConsumer {
 
     private final TransactionTemplate transactionTemplate;
 
-    /**
-     * 消息是按照批接收的, 或者在总量不满足一批时固定时间后发一批消息 配置来源 {@link top.liuqiao.thumb.config.ThumbConsumerConfig}
-     */
-    @PulsarListener(
-            subscriptionName = ThumbPulsarConstant.THUMB_SUBSCRIPTION,
-            topics = ThumbPulsarConstant.THUMB_TOPIC,
-            schemaType = SchemaType.JSON,
-            batch = true,
-            consumerCustomizer = "thumbConsumerConfig"
+    @KafkaListener(
+            topics = ThumbKafkaConstant.THUMB_TOPIC, groupId = ThumbKafkaConstant.THUMB_GROUP_ID,
+            batch = "true",
+            containerFactory = "thumbConsumerFactory"
     )
-    @Transactional(rollbackFor = Exception.class)
-    public void processBatch(List<Message<ThumbEvent>> messages) {
+    public void processBatch(List<String> thumbEventStrList) {
         // 接收到消息
-        log.info("ThumbConsumer processBatch: {}", messages.size());
+        log.info("ThumbConsumer processBatch: {}", thumbEventStrList.size());
+
         List<Thumb> thumbList = new ArrayList<>();
         Map<Long, Integer> countChangeMap = new HashMap<>();
 
 
-        Map<Pair<Long, Long>, ThumbEvent> uidBidChaTotalMap = messages.stream()
-                .map(Message::getValue).filter(Objects::nonNull) // 过滤无效消息
+        Map<Pair<Long, Long>, ThumbEvent> uidBidChaTotalMap = thumbEventStrList.stream()
+                .filter(Objects::nonNull) // 过滤无效消息
+                .map(s -> JSONUtil.toBean(s, ThumbEvent.class))
                 .collect(Collectors.groupingBy(te -> Pair.of(te.getUserId(), te.getItemId()), // 设置 map 的 key
                         Collectors.collectingAndThen(Collectors.toList(), list -> { // 得出相同用户对同一个博客的操作逻辑总结
                             if (list.size() % 2 == 0) {
@@ -70,6 +64,9 @@ public class ThumbConsumer {
 
         // 得出需要添加,删除的点赞情况和点赞数量的变化
         for (ThumbEvent te : uidBidChaTotalMap.values()) {
+            if (te == null) {
+                continue;
+            }
             Long itemId = te.getItemId();
             Long userId = te.getUserId();
             if (ThumbEvent.EventType.INCR.equals(te.getType())) {
@@ -110,9 +107,12 @@ public class ThumbConsumer {
         });
     }
 
-    @PulsarListener(topics = ThumbPulsarConstant.THUMB_DEAD_LETTER_TOPIC)
-    public void processDeadLetter(Message<ThumbEvent> message) {
-        log.error("死信队列触发, 相关消息为 {}", message.getValue());
+
+    @KafkaListener(
+            topics = ThumbKafkaConstant.THUMB_DEAD_LETTER_TOPIC, groupId = ThumbKafkaConstant.THUMB_GROUP_ID
+    )
+    public void processDeadLetter(String message) {
+        log.error("死信队列触发, 相关消息为 {}", JSONUtil.toBean(message, ThumbEvent.class));
     }
 
 }

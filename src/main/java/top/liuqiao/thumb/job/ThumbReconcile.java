@@ -1,16 +1,16 @@
 package top.liuqiao.thumb.job;
 
+import cn.hutool.json.JSONUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pulsar.client.api.PulsarClientException;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.pulsar.core.PulsarTemplate;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import top.liuqiao.thumb.constant.pulsar.ThumbPulsarConstant;
+import top.liuqiao.thumb.constant.kafka.ThumbKafkaConstant;
 import top.liuqiao.thumb.constant.redis.ThumbRedisConstant;
 import top.liuqiao.thumb.enums.ThumbOperationEnum;
 import top.liuqiao.thumb.listener.thumb.msg.ThumbEvent;
@@ -38,7 +38,7 @@ public class ThumbReconcile {
 
     private final ThumbMapper thumbMapper;
 
-    private final PulsarTemplate<ThumbEvent> pulsarTemplate;
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
     private final RedissonClient redissonClient;
 
@@ -51,10 +51,10 @@ public class ThumbReconcile {
 
 
     public ThumbReconcile(StringRedisTemplate redisTemplate, ThumbMapper thumbMapper,
-                          PulsarTemplate<ThumbEvent> pulsarTemplate, RedissonClient redissonClient) {
+                          KafkaTemplate<String, String> kafkaTemplate, RedissonClient redissonClient) {
         this.redisTemplate = redisTemplate;
         this.thumbMapper = thumbMapper;
-        this.pulsarTemplate = pulsarTemplate;
+        this.kafkaTemplate = kafkaTemplate;
         this.redissonClient = redissonClient;
 
         exe = Executors.newFixedThreadPool(batchThreadNum);
@@ -112,14 +112,12 @@ public class ThumbReconcile {
                                                 .userId(Long.parseLong(uid))
                                                 .itemId(bid)
                                                 .eventTime(currentTime).build();
-                                        try {
-                                            pulsarTemplate.sendAsync(ThumbPulsarConstant.THUMB_TOPIC, te).exceptionally(ex -> {
-                                                log.error("补偿事件发送失败 uid:{} bid:{}", uid, bid, ex);
-                                                return null;
-                                            });
-                                        } catch (PulsarClientException e) {
-                                            throw new RuntimeException(e);
-                                        }
+
+                                        kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, JSONUtil.toJsonStr(te))
+                                                .exceptionally(ex -> {
+                                                    log.error("补偿事件发送失败 uid:{} bid:{}", uid, bid, ex);
+                                                    return null;
+                                                });
                                     }
 
                                     // 删除对账完成的 key
