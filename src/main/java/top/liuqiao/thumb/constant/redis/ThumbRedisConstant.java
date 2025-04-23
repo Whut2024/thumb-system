@@ -28,4 +28,7 @@ public interface ThumbRedisConstant {
 
 
     String THUMB_RECONCILE_PREFIX = "thumb:reconcile:";
+
+    String THUMB_RECONCILE_LOCK = "thumb:reconcile-lock";
+
 }

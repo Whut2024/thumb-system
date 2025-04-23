@@ -2,6 +2,8 @@ package top.liuqiao.thumb.job;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pulsar.client.api.PulsarClientException;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -38,6 +40,8 @@ public class ThumbReconcile {
 
     private final PulsarTemplate<ThumbEvent> pulsarTemplate;
 
+    private final RedissonClient redissonClient;
+
     private final Executor exe;
 
 
@@ -46,77 +50,90 @@ public class ThumbReconcile {
     private int batchThreadNum = 5;
 
 
-    public ThumbReconcile(StringRedisTemplate redisTemplate, ThumbMapper thumbMapper, PulsarTemplate<ThumbEvent> pulsarTemplate) {
+    public ThumbReconcile(StringRedisTemplate redisTemplate, ThumbMapper thumbMapper,
+                          PulsarTemplate<ThumbEvent> pulsarTemplate, RedissonClient redissonClient) {
         this.redisTemplate = redisTemplate;
         this.thumbMapper = thumbMapper;
         this.pulsarTemplate = pulsarTemplate;
+        this.redissonClient = redissonClient;
 
         exe = Executors.newFixedThreadPool(batchThreadNum);
     }
 
     @Scheduled(cron = "0 0 2 * * *")
     void run() {
-        log.info("对账开始");
-        List<String> uidList = new ArrayList<>();
 
-        // 扫描出待对账的用户 id
-        try (Cursor<String> cursor = redisTemplate
-                .scan(ScanOptions.scanOptions()
-                        .count(1000)
-                        .match(ThumbRedisConstant.THUMB_RECONCILE_PREFIX + "*").build())) {
-            while (cursor.hasNext()) {
-                uidList.add(cursor.next().replace(ThumbRedisConstant.THUMB_RECONCILE_PREFIX, ""));
+        RLock lock = redissonClient.getLock(ThumbRedisConstant.THUMB_RECONCILE_LOCK);
+        if (!lock.tryLock()) {
+            return;
+        }
+
+
+        try {
+            log.info("对账开始");
+            List<String> uidList = new ArrayList<>();
+
+            // 扫描出待对账的用户 id
+            try (Cursor<String> cursor = redisTemplate
+                    .scan(ScanOptions.scanOptions()
+                            .count(1000)
+                            .match(ThumbRedisConstant.THUMB_RECONCILE_PREFIX + "*").build())) {
+                while (cursor.hasNext()) {
+                    uidList.add(cursor.next().replace(ThumbRedisConstant.THUMB_RECONCILE_PREFIX, ""));
+                }
             }
-        }
 
-        // 分段后并发处理
-        List<CompletableFuture<Void>> futureList = new ArrayList<>(uidList.size() / batchSize + 1);
+            // 分段后并发处理
+            List<CompletableFuture<Void>> futureList = new ArrayList<>(uidList.size() / batchSize + 1);
 
-        for (int i = 0; i < uidList.size(); i += batchSize) {
-            int end = Math.min(i + batchSize, uidList.size());
+            for (int i = 0; i < uidList.size(); i += batchSize) {
+                int end = Math.min(i + batchSize, uidList.size());
 
-            int finalI = i;
-            futureList.add(CompletableFuture.runAsync(() -> {
-                        // 遍历待对账的 user 点赞缓存和数据库缓存
-                        for (int j = finalI; j < end; j++) {
-                            String uid = uidList.get(j);
-                            {
-                                String key = ThumbRedisConstant.THUMB_RECONCILE_PREFIX + uid;
-                                Map<Object, Object> objectMap = redisTemplate.opsForHash()
-                                        .entries(key);
-                                Set<Object> bidSet = objectMap.keySet();
+                int finalI = i;
+                futureList.add(CompletableFuture.runAsync(() -> {
+                            // 遍历待对账的 user 点赞缓存和数据库缓存
+                            for (int j = finalI; j < end; j++) {
+                                String uid = uidList.get(j);
+                                {
+                                    String key = ThumbRedisConstant.THUMB_RECONCILE_PREFIX + uid;
+                                    Map<Object, Object> objectMap = redisTemplate.opsForHash()
+                                            .entries(key);
+                                    Set<Object> bidSet = objectMap.keySet();
 
-                                // 查询出不存在于数据库中的 id
-                                Set<Long> notExistBidSet = thumbMapper.batchSelectNotExist(bidSet);
+                                    // 查询出不存在于数据库中的 id
+                                    Set<Long> notExistBidSet = thumbMapper.batchSelectNotExist(bidSet);
 
-                                // 发送补偿消息
-                                long currentTime = System.currentTimeMillis();
-                                for (Long bid : notExistBidSet) {
-                                    ThumbEvent te = ThumbEvent.builder()
-                                            .type(ThumbOperationEnum.INCR.toString().equals(objectMap.get(bid.toString())) ?
-                                                    ThumbEvent.EventType.INCR : ThumbEvent.EventType.DECR)
-                                            .userId(Long.parseLong(uid))
-                                            .itemId(bid)
-                                            .eventTime(currentTime).build();
-                                    try {
-                                        pulsarTemplate.sendAsync(ThumbPulsarConstant.THUMB_TOPIC, te).exceptionally(ex -> {
-                                            log.error("补偿事件发送失败 uid:{} bid:{}", uid, bid, ex);
-                                            return null;
-                                        });
-                                    } catch (PulsarClientException e) {
-                                        throw new RuntimeException(e);
+                                    // 发送补偿消息
+                                    long currentTime = System.currentTimeMillis();
+                                    for (Long bid : notExistBidSet) {
+                                        ThumbEvent te = ThumbEvent.builder()
+                                                .type(ThumbOperationEnum.INCR.toString().equals(objectMap.get(bid.toString())) ?
+                                                        ThumbEvent.EventType.INCR : ThumbEvent.EventType.DECR)
+                                                .userId(Long.parseLong(uid))
+                                                .itemId(bid)
+                                                .eventTime(currentTime).build();
+                                        try {
+                                            pulsarTemplate.sendAsync(ThumbPulsarConstant.THUMB_TOPIC, te).exceptionally(ex -> {
+                                                log.error("补偿事件发送失败 uid:{} bid:{}", uid, bid, ex);
+                                                return null;
+                                            });
+                                        } catch (PulsarClientException e) {
+                                            throw new RuntimeException(e);
+                                        }
                                     }
+
+                                    // 删除对账完成的 key
+                                    redisTemplate.delete(key);
                                 }
-
-                                // 删除对账完成的 key
-                                redisTemplate.delete(key);
                             }
-                        }
-                    },
-                    exe));
-        }
+                        },
+                        exe));
+            }
 
-        CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0])).join();
-        log.info("对账结束");
+            CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0])).join();
+            log.info("对账结束");
+        } finally {
+            lock.unlock();
+        }
     }
 }
