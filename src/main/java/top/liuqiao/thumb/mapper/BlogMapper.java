@@ -36,6 +36,9 @@ public interface BlogMapper {
     List<Blog> pageBlog(@Param("blog") BlogPageRequest blog, @Param("offset") long offset);
 
     long countBlog(BlogPageRequest blog);
+
+    @Select("select id from thumb.t_blog where id = #{id}")
+    Blog existById(@Param("id") long id);
 }
 
 

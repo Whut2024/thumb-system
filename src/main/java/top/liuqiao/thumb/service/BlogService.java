@@ -43,4 +43,9 @@ public interface BlogService {
      * @param blogUpdateRequest 帖子信息
      */
     Boolean updateBlog(@Valid BlogUpdateRequest blogUpdateRequest);
+
+    /**
+     * 根据 id 检查帖子是否存在
+     */
+    Boolean exist(long id);
 }

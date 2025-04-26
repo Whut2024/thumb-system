@@ -3,15 +3,24 @@ package top.liuqiao.thumb.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.IdUtil;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.AllArgsConstructor;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import top.liuqiao.thumb.common.ErrorCode;
+import top.liuqiao.thumb.constant.redis.BlogRedisConstant;
+import top.liuqiao.thumb.enums.BlogExistEnum;
 import top.liuqiao.thumb.exception.BusinessException;
 import top.liuqiao.thumb.exception.ThrowUtils;
+import top.liuqiao.thumb.manager.cache.CacheManager;
 import top.liuqiao.thumb.mapper.BlogMapper;
 import top.liuqiao.thumb.mapper.ThumbCountMapper;
-import top.liuqiao.thumb.mapper.ThumbMapper;
 import top.liuqiao.thumb.model.entity.Blog;
 import top.liuqiao.thumb.model.request.blog.BlogAddRequest;
 import top.liuqiao.thumb.model.request.blog.BlogPageRequest;
@@ -20,32 +29,53 @@ import top.liuqiao.thumb.model.vo.blog.BlogVo;
 import top.liuqiao.thumb.service.BlogService;
 import top.liuqiao.thumb.service.ThumbService;
 import top.liuqiao.thumb.util.UserHolder;
+import top.liuqiao.thumb.util.lock.DistributedLockUtil;
 import top.liuqiao.thumb.util.sql.OrderEnum;
 import top.liuqiao.thumb.util.sql.Page;
 
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author liuqiao
  * @since 2025-04-10
  */
 @Service
-@AllArgsConstructor
 public class BlogServiceImpl implements BlogService {
 
     private final BlogMapper blogMapper;
 
-    private final ThumbMapper thumbMapper;
-
     private final ThumbCountMapper thumbCountMapper;
 
-    private final ThumbService thumbService;
+    @Autowired
+    private ThumbService thumbService;
 
     private final TransactionTemplate transactionTemplate;
 
-    private final static Set<String> fieldSet = new HashSet<>();
+    private final StringRedisTemplate redisTemplate;
+
+    private final DistributedLockUtil lockUtil;
+
+    public BlogServiceImpl(BlogMapper blogMapper, ThumbCountMapper thumbCountMapper,
+                           TransactionTemplate transactionTemplate,
+                           StringRedisTemplate redisTemplate, DistributedLockUtil lockUtil) {
+        this.blogMapper = blogMapper;
+        this.thumbCountMapper = thumbCountMapper;
+        this.transactionTemplate = transactionTemplate;
+        this.redisTemplate = redisTemplate;
+        this.lockUtil = lockUtil;
+    }
+
+    private final static Set<String> fieldSet;
+
+    private final static Cache<String, Boolean> blogExistCache;
+
+    private final static ExecutorService exe;
 
     static {
+        fieldSet = new HashSet<>();
         String[] fields = {
                 "title",
                 "content",
@@ -54,6 +84,14 @@ public class BlogServiceImpl implements BlogService {
                 "create_time"
         };
         Collections.addAll(fieldSet, fields);
+
+        blogExistCache = Caffeine.newBuilder()
+                .maximumSize(1000)
+                .expireAfterWrite(5, TimeUnit.MINUTES)
+                .build();
+
+
+        exe = Executors.newCachedThreadPool();
     }
 
     @Override
@@ -151,6 +189,55 @@ public class BlogServiceImpl implements BlogService {
         ThrowUtils.throwIf(userId != UserHolder.get().getId(), ErrorCode.NO_AUTH_ERROR, "帖子所属人错误");
 
         return blogMapper.updateBlog(blogUpdateRequest) == 1;
+    }
+
+    @Override
+    public Boolean exist(long id) {
+        // 查询本地缓存和redis缓存
+        String key = BlogRedisConstant.BLOG_EXIST_KEY_PREFIX + id;
+        Boolean exist = blogExistCache.getIfPresent(key);
+        if (exist != null) {
+            // 博客存在的信息热点, 被本地缓存记录了
+            return exist;
+        }
+
+        // exist == null
+
+        // 查询 redis
+        String data = redisTemplate.opsForValue().get(key);
+        if (data != null) {
+            // todo 热点加一 暂时默认直接缓存
+            blogExistCache.put(key, BlogExistEnum.exist(data));
+            return BlogExistEnum.exist(data);
+        }
+
+        // 缓存构建
+        exist = lockUtil.tryLock(BlogRedisConstant.BLOG_EXIST_LOCK + id, () -> {
+            // 缓存不存在要进行数据库查询
+            if (blogMapper.existById(id) != null) {
+                // 数据存在, 异步写 redis
+                exe.submit(() -> redisTemplate.opsForValue()
+                        .set(key, BlogExistEnum.EXIST.getStatus(),
+                                BlogRedisConstant.BLOG_EXIST_TTL, TimeUnit.MILLISECONDS));
+                return Boolean.TRUE;
+            }
+
+            // todo 数据不存在, 可能为缓存击穿攻击, 将用户监视度加一
+
+            // 异步给 redis 缓存一个 NULL
+            exe.submit(() -> redisTemplate.opsForValue()
+                    .set(key, BlogExistEnum.NOT_EXIST.getStatus(),
+                            BlogRedisConstant.BLOG_EXIST_TTL, TimeUnit.MILLISECONDS));
+            return Boolean.FALSE;
+        });
+
+        if (exist == null) {
+            // 没有抢到锁, 点赞冲突, 快速失败这次操作
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "点赞火爆, 请重试");
+        }
+
+        return exist;
+
     }
 
 }

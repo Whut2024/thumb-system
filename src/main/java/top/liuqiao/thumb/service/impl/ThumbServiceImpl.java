@@ -5,6 +5,8 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.json.JSONUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ import top.liuqiao.thumb.manager.cache.CacheManager;
 import top.liuqiao.thumb.model.entity.Thumb;
 import top.liuqiao.thumb.model.request.thumb.ThumbAddRequest;
 import top.liuqiao.thumb.model.request.thumb.ThumbDeleteRequest;
+import top.liuqiao.thumb.service.BlogService;
 import top.liuqiao.thumb.service.ThumbService;
 import top.liuqiao.thumb.util.UserHolder;
 import top.liuqiao.thumb.util.lock.DistributedLockUtil;
@@ -29,7 +32,6 @@ import top.liuqiao.thumb.util.lock.DistributedLockUtil;
  */
 @Slf4j
 @Service
-@AllArgsConstructor
 public class ThumbServiceImpl implements ThumbService {
 
     private final StringRedisTemplate redisTemplate;
@@ -42,9 +44,23 @@ public class ThumbServiceImpl implements ThumbService {
 
     private final DistributedLockUtil lockUtil;
 
+    @Autowired
+    private BlogService blogService;
+
+    public ThumbServiceImpl(StringRedisTemplate redisTemplate, CacheManager cacheManager,
+                            KafkaTemplate<String, String> kafkaTemplate, DistributedLockUtil lockUtil) {
+        this.redisTemplate = redisTemplate;
+        this.cacheManager = cacheManager;
+        this.kafkaTemplate = kafkaTemplate;
+        this.lockUtil = lockUtil;
+    }
 
     @Override
     public Boolean addThumb(ThumbAddRequest thumbAddRequest) {
+        // 校验博客是否存在
+        ThrowUtils.throwIf(!blogService.exist(thumbAddRequest.getItemId()),
+                ErrorCode.PARAMS_ERROR, "博客不存在");
+
         // 获取用户信息
         Long userId = UserHolder.get().getId();
 
@@ -101,6 +117,10 @@ public class ThumbServiceImpl implements ThumbService {
 
     @Override
     public Boolean deleteThumb(ThumbDeleteRequest thumbDeleteRequest) {
+        // 校验博客是否存在
+        ThrowUtils.throwIf(!blogService.exist(thumbDeleteRequest.getItemId()),
+                ErrorCode.PARAMS_ERROR, "博客不存在");
+
         // 获取 item 点赞分布式锁
         Long userId = UserHolder.get().getId();
         Boolean success = lockUtil.tryLock(ThumbRedisConstant.THUMB_LOCK_PREFIX + userId, () -> {
