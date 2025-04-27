@@ -26,6 +26,8 @@ public interface UserMapper {
 
     @Select("select id from thumb.t_user where id >= #{offset} limit #{pageSize}")
     List<Long> getbatchUserIds(@Param("offset") long offset, @Param("pageSize") int pageSize);
+
+    void addBatchUser(@Param("userList") List<User> userList);
 }
 
 

@@ -1,7 +1,6 @@
 spring:
   application:
     name: thumb-system
-
   # 读取远程配置
   config:
     import: 'nacos:'
@@ -17,6 +16,16 @@ spring:
         password: nacos
   main:
     allow-circular-references: true
+  datasource:
+    hikari:
+      maximum-pool-size: 25
+      minimum-idle: 15
+  data:
+    redis:
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 50
 
 
 # 整合 Prometheus + Grafana
@@ -31,4 +40,3 @@ management:
         http:
           server:
             requests: 0.5, 0.75, 0.9, 0.95, 0.99
-
