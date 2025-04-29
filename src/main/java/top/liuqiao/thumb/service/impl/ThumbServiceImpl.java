@@ -3,10 +3,8 @@ package top.liuqiao.thumb.service.impl;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.json.JSONUtil;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -16,11 +14,11 @@ import top.liuqiao.thumb.constant.redis.ThumbLuaConstant;
 import top.liuqiao.thumb.constant.redis.ThumbRedisConstant;
 import top.liuqiao.thumb.enums.LuaScriptResultEnum;
 import top.liuqiao.thumb.exception.ThrowUtils;
-import top.liuqiao.thumb.listener.thumb.msg.ThumbEvent;
 import top.liuqiao.thumb.manager.cache.CacheManager;
 import top.liuqiao.thumb.model.entity.Thumb;
 import top.liuqiao.thumb.model.request.thumb.ThumbAddRequest;
 import top.liuqiao.thumb.model.request.thumb.ThumbDeleteRequest;
+import top.liuqiao.thumb.protobuf.entity.ThumbEvent;
 import top.liuqiao.thumb.service.BlogService;
 import top.liuqiao.thumb.service.ThumbService;
 import top.liuqiao.thumb.util.UserHolder;
@@ -40,7 +38,7 @@ public class ThumbServiceImpl implements ThumbService {
 
     private final static Long UN_THUMB_CONSTANT = 0L;
 
-    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final KafkaTemplate<String, byte[]> kafkaTemplate;
 
     private final DistributedLockUtil lockUtil;
 
@@ -48,7 +46,7 @@ public class ThumbServiceImpl implements ThumbService {
     private BlogService blogService;
 
     public ThumbServiceImpl(StringRedisTemplate redisTemplate, CacheManager cacheManager,
-                            KafkaTemplate<String, String> kafkaTemplate, DistributedLockUtil lockUtil) {
+                            KafkaTemplate<String, byte[]> kafkaTemplate, DistributedLockUtil lockUtil) {
         this.redisTemplate = redisTemplate;
         this.cacheManager = cacheManager;
         this.kafkaTemplate = kafkaTemplate;
@@ -92,14 +90,14 @@ public class ThumbServiceImpl implements ThumbService {
                     ErrorCode.OPERATION_ERROR, "无法重复点赞");
 
 
-            // 异步发送点赞消息 如果出现异常回滚 redis 点赞缓存
-            ThumbEvent te = ThumbEvent.builder()
-                    .userId(userId)
-                    .itemId(itemId)
-                    .eventTime(currentTime)
-                    .type(ThumbEvent.EventType.INCR).build();
+            // 异步发送点赞消息x 如果出现异常回滚 redis 点赞缓存
+            ThumbEvent te = ThumbEvent.newBuilder()
+                    .setUserId(userId)
+                    .setItemId(itemId)
+                    .setEventTime(currentTime)
+                    .setType(ThumbEvent.EventType.INCR).build();
 
-            kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, JSONUtil.toJsonStr(te)).exceptionally(ex -> {
+            kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, te.toByteArray()).exceptionally(ex -> {
                 redisTemplate.opsForHash().delete(userThuHashKey, itemIdStr);
                 log.error("点赞消息发送失败 uid:{} bid:{}", userId, itemId, ex);
                 return null;
@@ -146,13 +144,13 @@ public class ThumbServiceImpl implements ThumbService {
 
 
             // 异步发送取消点赞消息 如果出现异常回滚 redis 点赞缓存
-            ThumbEvent te = ThumbEvent.builder()
-                    .userId(userId)
-                    .itemId(itemId)
-                    .eventTime(System.currentTimeMillis())
-                    .type(ThumbEvent.EventType.DECR).build();
+            ThumbEvent te = ThumbEvent.newBuilder()
+                    .setUserId(userId)
+                    .setItemId(itemId)
+                    .setEventTime(System.currentTimeMillis())
+                    .setType(ThumbEvent.EventType.INCR).build();
 
-            kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, JSONUtil.toJsonStr(te)).exceptionally(ex -> {
+            kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, te.toByteArray()).exceptionally(ex -> {
                 redisTemplate.opsForHash().delete(userThuHashKey, itemIdStr);
                 log.error("取消点赞消息发送失败 uid:{} bid:{}", userId, itemId, ex);
                 return null;

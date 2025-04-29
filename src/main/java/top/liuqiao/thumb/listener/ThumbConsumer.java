@@ -10,10 +10,10 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import top.liuqiao.thumb.constant.kafka.ThumbKafkaConstant;
-import top.liuqiao.thumb.listener.thumb.msg.ThumbEvent;
 import top.liuqiao.thumb.mapper.ThumbCountMapper;
 import top.liuqiao.thumb.mapper.ThumbMapper;
 import top.liuqiao.thumb.model.entity.Thumb;
+import top.liuqiao.thumb.protobuf.entity.ThumbEvent;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -39,9 +39,9 @@ public class ThumbConsumer {
     @KafkaListener(
             topics = ThumbKafkaConstant.THUMB_TOPIC, groupId = ThumbKafkaConstant.THUMB_GROUP_ID,
             batch = "true",
-            containerFactory = "thumbConsumerFactory"
+            containerFactory = "thumbEventConsumerFactory"
     )
-    public void processBatch(List<String> thumbEventStrList) {
+    public void processBatch(List<ThumbEvent> thumbEventStrList) {
         // 接收到消息
         log.info("ThumbConsumer processBatch: {}", thumbEventStrList.size());
 
@@ -51,7 +51,6 @@ public class ThumbConsumer {
 
         Map<Pair<Long, Long>, ThumbEvent> uidBidChaTotalMap = thumbEventStrList.stream()
                 .filter(Objects::nonNull) // 过滤无效消息
-                .map(s -> JSONUtil.toBean(s, ThumbEvent.class))
                 .collect(Collectors.groupingBy(te -> Pair.of(te.getUserId(), te.getItemId()), // 设置 map 的 key
                         Collectors.collectingAndThen(Collectors.toList(), list -> { // 得出相同用户对同一个博客的操作逻辑总结
                             if (list.size() % 2 == 0) {
@@ -109,10 +108,11 @@ public class ThumbConsumer {
 
 
     @KafkaListener(
-            topics = ThumbKafkaConstant.THUMB_DEAD_LETTER_TOPIC, groupId = ThumbKafkaConstant.THUMB_GROUP_ID
+            topics = ThumbKafkaConstant.THUMB_DEAD_LETTER_TOPIC, groupId = ThumbKafkaConstant.THUMB_GROUP_ID,
+            containerFactory = "thumbEventDeadLetterConsumerFactory"
     )
-    public void processDeadLetter(String message) {
-        log.error("死信队列触发, 相关消息为 {}", JSONUtil.toBean(message, ThumbEvent.class));
+    public void processDeadLetter(ThumbEvent thumbEvent) {
+        log.error("死信队列触发, 相关消息为 {}", thumbEvent);
     }
 
 }

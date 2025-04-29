@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component;
 import top.liuqiao.thumb.constant.kafka.ThumbKafkaConstant;
 import top.liuqiao.thumb.constant.redis.ThumbRedisConstant;
 import top.liuqiao.thumb.enums.ThumbOperationEnum;
-import top.liuqiao.thumb.listener.thumb.msg.ThumbEvent;
 import top.liuqiao.thumb.mapper.ThumbMapper;
+import top.liuqiao.thumb.protobuf.entity.ThumbEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -106,12 +106,12 @@ public class ThumbReconcile {
                                     // 发送补偿消息
                                     long currentTime = System.currentTimeMillis();
                                     for (Long bid : notExistBidSet) {
-                                        ThumbEvent te = ThumbEvent.builder()
-                                                .type(ThumbOperationEnum.INCR.toString().equals(objectMap.get(bid.toString())) ?
+                                        ThumbEvent te = ThumbEvent.newBuilder()
+                                                .setType(ThumbOperationEnum.INCR.toString().equals(objectMap.get(bid.toString())) ?
                                                         ThumbEvent.EventType.INCR : ThumbEvent.EventType.DECR)
-                                                .userId(Long.parseLong(uid))
-                                                .itemId(bid)
-                                                .eventTime(currentTime).build();
+                                                .setEventTime(Long.parseLong(uid))
+                                                .setItemId(bid)
+                                                .setUserId(currentTime).build();
 
                                         kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, JSONUtil.toJsonStr(te))
                                                 .exceptionally(ex -> {

@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package top.liuqiao.thumb.listener.thumb.msg;
+
+option java_multiple_files = true;
+option java_package = "top.liuqiao.thumb.protobuf.entity";
+option java_outer_classname = "ThumbEventProto";
+
+message ThumbEvent {
+  // 用户ID
+  int64 user_id = 1;
+
+  // 博客ID
+  int64 item_id = 2;
+
+  // 事件类型
+  EventType type = 3;
+
+  // 事件发生时间
+  int64 event_time = 4;
+
+  // 事件类型枚举
+  enum EventType {
+    // 点赞
+    INCR = 0;
+
+    // 取消点赞
+    DECR = 1;
+  }
+}
