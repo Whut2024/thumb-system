@@ -2,9 +2,9 @@ package top.liuqiao.thumb.service.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.IdUtil;
-import cn.hutool.json.JSONUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -38,7 +38,7 @@ public class ThumbServiceImpl implements ThumbService {
 
     private final static Long UN_THUMB_CONSTANT = 0L;
 
-    private final KafkaTemplate<String, byte[]> kafkaTemplate;
+    private final KafkaTemplate<String, ThumbEvent> kafkaTemplate;
 
     private final DistributedLockUtil lockUtil;
 
@@ -46,18 +46,18 @@ public class ThumbServiceImpl implements ThumbService {
     private BlogService blogService;
 
     public ThumbServiceImpl(StringRedisTemplate redisTemplate, CacheManager cacheManager,
-                            KafkaTemplate<String, byte[]> kafkaTemplate, DistributedLockUtil lockUtil) {
+                            DistributedLockUtil lockUtil,
+                            @Qualifier("thumbKafkaTemplate") KafkaTemplate<String, ThumbEvent> kafkaTemplate) {
         this.redisTemplate = redisTemplate;
         this.cacheManager = cacheManager;
-        this.kafkaTemplate = kafkaTemplate;
         this.lockUtil = lockUtil;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     @Override
     public Boolean addThumb(ThumbAddRequest thumbAddRequest) {
         // 校验博客是否存在
-        ThrowUtils.throwIf(!blogService.exist(thumbAddRequest.getItemId()),
-                ErrorCode.PARAMS_ERROR, "博客不存在");
+        ThrowUtils.throwIf(!blogService.exist(thumbAddRequest.getItemId()), ErrorCode.PARAMS_ERROR, "博客不存在");
 
         // 获取用户信息
         Long userId = UserHolder.get().getId();
@@ -97,18 +97,20 @@ public class ThumbServiceImpl implements ThumbService {
                     .setEventTime(currentTime)
                     .setType(ThumbEvent.EventType.INCR).build();
 
-            kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, te.toByteArray()).exceptionally(ex -> {
+            kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, te).exceptionally(ex -> {
                 redisTemplate.opsForHash().delete(userThuHashKey, itemIdStr);
                 log.error("点赞消息发送失败 uid:{} bid:{}", userId, itemId, ex);
                 return null;
             });
+
 
             // 如果本地缓存中存在于当前用户操作相关的缓存, 更新本地缓存
             cacheManager.putIfPresent(userThuHashKey, itemIdStr, expireTIme);
             return Boolean.TRUE;
         });
 
-        ThrowUtils.throwIf(success == null, ErrorCode.OPERATION_ERROR, "不能短时间重复点赞");
+        ThrowUtils.throwIf(success == null,
+                ErrorCode.OPERATION_ERROR, "不能短时间重复点赞");
         return success;
 
     }
@@ -145,12 +147,11 @@ public class ThumbServiceImpl implements ThumbService {
 
             // 异步发送取消点赞消息 如果出现异常回滚 redis 点赞缓存
             ThumbEvent te = ThumbEvent.newBuilder()
-                    .setUserId(userId)
-                    .setItemId(itemId)
+                    .setUserId(userId).setItemId(itemId)
                     .setEventTime(System.currentTimeMillis())
-                    .setType(ThumbEvent.EventType.INCR).build();
+                    .setType(ThumbEvent.EventType.DECR).build();
 
-            kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, te.toByteArray()).exceptionally(ex -> {
+            kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, te).exceptionally(ex -> {
                 redisTemplate.opsForHash().delete(userThuHashKey, itemIdStr);
                 log.error("取消点赞消息发送失败 uid:{} bid:{}", userId, itemId, ex);
                 return null;
