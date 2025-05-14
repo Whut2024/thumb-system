@@ -1,5 +1,6 @@
 package top.liuqiao.thumb.model.vo.user;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -14,6 +15,7 @@ public class UserLoginVo implements Serializable {
     /**
      * 用户ID
      */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long id;
 
     /**

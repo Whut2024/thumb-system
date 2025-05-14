@@ -1,5 +1,6 @@
 package top.liuqiao.thumb.model.vo.blog;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -14,6 +15,7 @@ public class BlogVo implements Serializable {
     /**
      * 帖子id
      */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long id;
 
     /**
@@ -44,6 +46,7 @@ public class BlogVo implements Serializable {
     /**
      * 发帖人id
      */
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long userId;
 
     /**
