@@ -57,9 +57,8 @@ public class UserServiceImpl implements UserService {
         }
 
         // 检查用户是否存在
-        if (userMapper.isUserExist(username) == 1) {
-            return Boolean.FALSE;
-        }
+        ThrowUtils.throwIf(userMapper.isUserExist(username) == 1,
+                ErrorCode.PARAMS_ERROR, "账户已经存在");
 
         // 增加用户
         final User user = new User();
