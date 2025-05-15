@@ -22,7 +22,7 @@ public interface ThumbMapper {
 
     void batchDeleteByUidBids(@Param("duidList") List<Long> duidList, @Param("dbidList") List<Long> dbidList);
 
-    Set<Long> batchSelectNotExist(@Param("bidSet") Set<Object> bidSet);
+    Set<Long> batchSelectNotExist(@Param("bidSet") Set<Object> bidSet, @Param("userId")String uid);
 }
 
 

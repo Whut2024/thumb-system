@@ -78,9 +78,10 @@ public class ThumbServiceImpl implements ThumbService {
             String expireTIme = String.valueOf(currentTime + ThumbRedisConstant.MONTH_SECOND);
 
             // redis 判断是否点赞 没有点赞则缓存用户点赞
+            String reconcileKey = ThumbRedisConstant.THUMB_RECONCILE_PREFIX + userId;
             Long result = redisTemplate.execute(ThumbLuaConstant.THUMB_SCRIPT_MQ,
                     CollectionUtil.newArrayList(userThuHashKey,  // k1
-                            ThumbRedisConstant.THUMB_RECONCILE_PREFIX + userId), // k2
+                            reconcileKey), // k2
                     itemIdStr,  // arg1
                     expireTIme // arg2
             );
@@ -99,6 +100,7 @@ public class ThumbServiceImpl implements ThumbService {
 
             kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, te).exceptionally(ex -> {
                 redisTemplate.opsForHash().delete(userThuHashKey, itemIdStr);
+                redisTemplate.opsForHash().delete(reconcileKey, itemIdStr);
                 log.error("点赞消息发送失败 uid:{} bid:{}", userId, itemId, ex);
                 return null;
             });
@@ -134,9 +136,10 @@ public class ThumbServiceImpl implements ThumbService {
                     ErrorCode.OPERATION_ERROR, "用户没有点赞");
 
             // redis 判断用户已经点赞 删除点赞记录
+            String reconcileKey = ThumbRedisConstant.THUMB_RECONCILE_PREFIX + userId;
             Long result = redisTemplate.execute(ThumbLuaConstant.UNTHUMB_SCRIPT_MQ,
                     CollectionUtil.newArrayList(userThuHashKey, // k1
-                            ThumbRedisConstant.THUMB_RECONCILE_PREFIX + userId), // k2
+                            reconcileKey), // k2
                     itemIdStr  // arg1
             );
 
@@ -153,6 +156,7 @@ public class ThumbServiceImpl implements ThumbService {
 
             kafkaTemplate.send(ThumbKafkaConstant.THUMB_TOPIC, te).exceptionally(ex -> {
                 redisTemplate.opsForHash().delete(userThuHashKey, itemIdStr);
+                redisTemplate.opsForHash().delete(reconcileKey, itemIdStr);
                 log.error("取消点赞消息发送失败 uid:{} bid:{}", userId, itemId, ex);
                 return null;
             });

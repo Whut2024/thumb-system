@@ -101,7 +101,7 @@ public class ThumbReconcile {
                                     Set<Object> bidSet = objectMap.keySet();
 
                                     // 查询出不存在于数据库中的 id
-                                    Set<Long> notExistBidSet = thumbMapper.batchSelectNotExist(bidSet);
+                                    Set<Long> notExistBidSet = thumbMapper.batchSelectNotExist(bidSet, uid);
 
                                     // 发送补偿消息
                                     long currentTime = System.currentTimeMillis();

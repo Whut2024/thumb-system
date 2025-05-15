@@ -53,6 +53,6 @@
         </foreach>
         ) tmp
         LEFT JOIN thumb.t_thumb t ON tmp.id = t.item_id
-        WHERE t.item_id IS NULL
+        WHERE t.user_id = #{userId} and t.item_id IS NULL
     </select>
 </mapper>
