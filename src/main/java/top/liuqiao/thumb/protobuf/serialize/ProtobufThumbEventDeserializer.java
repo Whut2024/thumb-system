@@ -5,7 +5,7 @@ import org.apache.kafka.common.serialization.Deserializer;
 import top.liuqiao.thumb.protobuf.entity.ThumbEvent;
 
 /**
- * 解析对应的 protobuf 格式编码的 {@link top.liuqiao.thumb.listener.thumb.msg.ThumbEvent} 对象
+ * 解析对应的 protobuf 格式编码的 {@link ThumbEvent} 对象
  *
  * @author liuqiao
  * @since 2025-04-29
