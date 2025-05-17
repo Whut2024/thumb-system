@@ -88,7 +88,7 @@ public class ThumbServiceImpl implements ThumbService {
 
             // 用户重复点赞
             ThrowUtils.throwIf(result == null || result == LuaScriptResultEnum.FAIL.getValue(),
-                    ErrorCode.OPERATION_ERROR, "无法重复点赞");
+                    ErrorCode.PARAMS_ERROR, "无法重复点赞");
 
 
             // 异步发送点赞消息x 如果出现异常回滚 redis 点赞缓存
@@ -145,7 +145,7 @@ public class ThumbServiceImpl implements ThumbService {
 
             // 用户没有点赞 无法取消点赞
             ThrowUtils.throwIf(result == null || result == LuaScriptResultEnum.FAIL.getValue(),
-                    ErrorCode.OPERATION_ERROR, "无法取消点赞");
+                    ErrorCode.PARAMS_ERROR, "无法取消点赞");
 
 
             // 异步发送取消点赞消息 如果出现异常回滚 redis 点赞缓存
@@ -166,7 +166,8 @@ public class ThumbServiceImpl implements ThumbService {
             return Boolean.TRUE;
         });
 
-        ThrowUtils.throwIf(success == null, ErrorCode.OPERATION_ERROR, "不能短时间重复点赞");
+        ThrowUtils.throwIf(success == null,
+                ErrorCode.OPERATION_ERROR, "不能短时间重复点赞");
         return success;
     }
 
