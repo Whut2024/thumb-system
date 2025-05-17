@@ -33,7 +33,7 @@ public class BlogController {
     }
 
     @PostMapping("update")
-    public BaseResponse<Boolean> updte(@RequestBody @Valid BlogUpdateRequest blogUpdateRequest) {
+    public BaseResponse<Boolean> update(@RequestBody @Valid BlogUpdateRequest blogUpdateRequest) {
 
         return ResultUtils.success(blogService.updateBlog(blogUpdateRequest));
     }
